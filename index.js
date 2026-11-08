@@ -55,7 +55,9 @@ async function pdOpenPath(p, url) {
   try {
     const f = await neo.pdfRead(p);
     pdLib ??= await import(await __asset('vendor/pdf.min.mjs', 'text/javascript'));
-    pdLib.GlobalWorkerOptions.workerSrc = await __asset('vendor/pdf.worker.min.mjs', 'text/javascript');
+    // le bac à sable de NeoDex refuse de lancer un « worker » depuis un fichier du plugin : la partie qui lit le PDF tourne dans la page,
+    // chargée d'avance (pdf.js la prend dans globalThis.pdfjsWorker au lieu de lancer son worker)
+    globalThis.pdfjsWorker ??= await import(pdLib.GlobalWorkerOptions.workerSrc = await __asset('vendor/pdf.worker.min.mjs', 'text/javascript'));
     const doc = await pdLib.getDocument({data: f.data, isEvalSupported: false}).promise;  // no eval: a PDF's fonts can't run code
     await pdData();
     pd?.doc?.destroy();
@@ -68,7 +70,7 @@ async function pdOpenPath(p, url) {
 }
 // as wide as the window, like a browser's PDF viewer
 async function pdFitZoom() {
-  const w = (await pd.doc.getPage(1)).getViewport({scale: 1}).width, room = ($('pdPages').clientWidth || $('browserView').clientWidth || 1200) - 70;
+  const w = (await pd.doc.getPage(1)).getViewport({scale: 1}).width, room = ($('pdPages')?.clientWidth || document.documentElement.clientWidth || 1200) - 70;  // la page du plugin (la liste des pages n'existe pas encore au premier PDF)
   return Math.min(4, Math.max(.5, room / w));
 }
 // the text of a page, invisible over its picture: it can be selected, copied and found with Ctrl+F

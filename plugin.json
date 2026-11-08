@@ -30,6 +30,7 @@
   "permissions": [
     "storage",
     "background",
-    "documents"
+    "documents",
+    "files"
   ]
 }
