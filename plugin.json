@@ -1,7 +1,7 @@
 {
   "id": "neodex.pdf",
   "name": "NeoPDF",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "author": "NDesumeur",
   "description": "Lecteur de PDF avec annotations : ouvre un fichier, glisse-le ou lis un PDF venu d'un site, zoom, pleine largeur et recherche dans tout le texte. Stylo, surligneur, notes posées sur la page et gomme en six couleurs, avec annulation. Les annotations sont gardées pour chaque PDF et synchronisées ; enregistre une copie simple ou annotée sans toucher à l'original.",
   "icon": "icon.png",
