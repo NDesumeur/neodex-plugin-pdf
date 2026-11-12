@@ -10,6 +10,7 @@
   "neobase": ">=4.0.0",
   "type": "app",
   "category": "Bureautique",
+  "compatibility": ["windows", "linux"],
   "syncMode": "fusion",
   "syncInfo": "Tes annotations (tracés et notes) et tes PDF récents.",
   "mobile": false,
