@@ -5,7 +5,9 @@ const HTML = "<div class=\"appWrap pdWrap\">\n      <div class=\"agHead\"><span 
 /*CSS-MOVED*/ const CSS = `html.pxc :is(input:not([type=checkbox]):not([type=range]):not([type=color]),textarea,[contenteditable=""],[contenteditable=true],.dcPage,.textLayer span){cursor:var(--ct,text) !important}
 .appWrap.pdWrap{max-width:none;margin:0;height:100%;overflow:clip;gap:6px;padding:8px 10px}
 .pdBar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.pdBar #pdPageNum{width:70px}
+.pdBar #pdPageNum{width:70px;font-size:16px}
+.pdBar .hint{font-size:15px}.pdWrap .agHead .hint{font-size:14px}
+@media (max-width:1350px){.pdBar{gap:4px}#pdBar .btn{padding:5px 8px!important;font-size:11px!important;min-width:0!important;height:auto!important;width:auto!important}.pdTools{margin:0 4px;gap:3px}.pdColor{width:20px;height:20px}}
 .pdTools{display:flex;gap:4px;align-items:center;margin:0 8px}
 .pdColor{width:22px;height:22px;border:0;box-shadow:inset 0 0 0 2px #0006;cursor:var(--cp,pointer)}
 .pdColor.on{box-shadow:0 0 0 3px #fff}
@@ -15,7 +17,7 @@ const HTML = "<div class=\"appWrap pdWrap\">\n      <div class=\"agHead\"><span 
 .pdPage canvas{position:absolute;inset:0;width:100%;height:100%}
 .pdPages[data-tool=scroll] .pdInk{pointer-events:none}
 .pdPages:not([data-tool=scroll]) .pdInk{cursor:crosshair;touch-action:none}
-.pdNum{position:absolute;right:-30px;bottom:0;color:var(--muted);font:11px var(--title)}
+.pdNum{position:absolute;right:-30px;bottom:0;color:var(--muted);font:13px var(--title)}
 .pdNotes{position:absolute;inset:0;pointer-events:none;z-index:3}
 .textLayer{position:absolute;text-align:initial;inset:0;overflow:clip;opacity:1;line-height:1;text-size-adjust:none;forced-color-adjust:none;transform-origin:0 0;z-index:2;user-select:text}
 .pdPages:not([data-tool=scroll]) .textLayer{pointer-events:none}
@@ -65,7 +67,7 @@ async function pdOpenPath(p, url) {
     const d = pdDoc(); Object.assign(d, {name: f.name, path: url ? '' : p, url: url || '', at: Date.now(), count: doc.numPages});
     // the list of recent PDFs is kept short
     const old = Object.entries(pdStore.docs).sort((a, b) => b[1].at - a[1].at).slice(30); for (const [h] of old) if (!pdStore.docs[h].marks.length && !pdStore.docs[h].notes.length) delete pdStore.docs[h];
-    pd.zoom = await pdFitZoom(); pdSave(); await pdLayout(); pdGo(d.page || 1);
+    pd.zoom = await pdFitZoom(); pd.fit = true; pdSave(); await pdLayout(); pdGo(d.page || 1);
   } catch (e) { toast('PDF illisible : ' + e.message.replace(/^.*Error: /, ''), true); }
 }
 // as wide as the window, like a browser's PDF viewer
@@ -142,7 +144,7 @@ function pdRecent() {
 }
 async function pdOpen() { await pdData(); if (pd) { pdUi(); return; } pdUi(); }
 function pdGo(n) { const p = pd?.pages[Math.min(pd.pages.length, Math.max(1, n)) - 1]; if (!p) return; const box = $('pdPages'); box.scrollTop += p.el.getBoundingClientRect().top - box.getBoundingClientRect().top; $('pdPageNum').value = n; }
-function pdSetZoom(z) { if (!pd) return; const cur = +$('pdPageNum').value || 1; pd.zoom = z; pdLayout().then(() => pdGo(cur)); }
+function pdSetZoom(z, fit = false) { if (!pd) return; pd.fit = fit; const cur = +$('pdPageNum').value || 1; pd.zoom = z; pdLayout().then(() => pdGo(cur)); }
 // drawing with the mouse (or a pen): the point in page fractions
 const pdAt = (p, e) => { const r = p.el.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]; };
 $('pdPages').onpointerdown = e => {
@@ -166,7 +168,9 @@ $('pdPages').onscroll = () => { if (!pd) return; const box = $('pdPages'), mid =
 $('pdPageNum').onchange = e => pdGo(+e.target.value);
 $('pdPrev').onclick = () => pdGo((+$('pdPageNum').value || 1) - 1);
 $('pdNext').onclick = () => pdGo((+$('pdPageNum').value || 1) + 1);
-$('pdFit').onclick = async () => pd && pdSetZoom(await pdFitZoom());
+$('pdFit').onclick = async () => pd && pdSetZoom(await pdFitZoom(), true);
+let pdResizeT = null;  // « toute la largeur » le reste quand la fenêtre change de taille
+addEventListener('resize', () => { clearTimeout(pdResizeT); pdResizeT = setTimeout(async () => { if (pd?.fit && $('pdPages')?.clientWidth) { const z = await pdFitZoom(); if (Math.abs(z - pd.zoom) > .02) pdSetZoom(z, true); } }, 250); });
 $('pdZoomIn').onclick = () => pd && pdSetZoom(PD.zooms.find(z => z > pd.zoom) || pd.zoom);
 $('pdZoomOut').onclick = () => pd && pdSetZoom([...PD.zooms].reverse().find(z => z < pd.zoom) || pd.zoom);
 $('pdUndo').onclick = () => { const u = pd?.undo.pop(); if (!u) return; const d = pdDoc(), l = d[u[0]]; if (l.includes(u[1])) l.splice(l.indexOf(u[1]), 1); pdSave(); pdInk(u[1].p); pdUi(); };

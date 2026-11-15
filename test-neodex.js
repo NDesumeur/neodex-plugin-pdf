@@ -12,6 +12,10 @@ module.exports = async ({ pj, js, sleep }) => {
     if (errs.length) throw new Error(errs.join(' | '));
   if (r1 !== 'true') throw new Error("aucun plugin n'ouvre le PDF : " + r1);
   if (!state) throw new Error("le PDF s'ouvre mais sa page n'est pas dessinée : " + await pj(`(document.querySelector('#pdPages')?.innerHTML || 'pas de #pdPages').slice(0, 300) + ' | ' + [...document.querySelectorAll('.toast, [class*=toast]')].map(t => t.textContent).join(' / ') + ' | ' + document.body.innerText.slice(0, 200)`) + ' | page : ' + await js(`[...document.querySelectorAll('.toast, #toast, [class*=toast]')].map(t => t.textContent).join(' / ').slice(0, 300)`));
+  const lay = await pj(`(() => { const p = document.querySelector('.pdPage').getBoundingClientRect(), w = document.getElementById('pdPages').getBoundingClientRect(), bar = document.getElementById('pdBar').getBoundingClientRect();
+    return { fits: p.right <= w.right + 1 && p.left >= w.left - 1, bar: Math.round(bar.height), over: [...document.querySelectorAll('.appWrap *')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).length }; })()`);
+  if (!lay.fits || lay.over) throw new Error('mise en page : ' + JSON.stringify(lay));
+  if (lay.bar > 120) throw new Error('la barre d’outils prend ' + lay.bar + ' px de haut');
   fs.rmSync(f, { force: true });
   return 'PDF ouvert, ' + state + ' page(s) dessinée(s)';
 };
