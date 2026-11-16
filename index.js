@@ -1,7 +1,7 @@
 // NeoPDF : ton appli d'origine (HTML et code inchangés), livrée en plugin.
 // Ses données sont dans le dossier du plugin, que NeoDex sauvegarde (synchro cloud et sauvegardes) ; à la première ouverture elle reprend ce que tu avais dans NeoDex.
 // Elle tourne dans le bac à sable de NeoDex, avec ses outils d'interface (ctx.host) et seulement les autorisations de son plugin.json.
-const HTML = "<div class=\"appWrap pdWrap\">\n      <div class=\"agHead\"><span class=\"label\">NeoPDF</span><span class=\"hint\" id=\"pdInfo\"></span><div class=\"agNav\"><button class=\"btn main px\" id=\"pdOpenBtn\">OUVRIR UN PDF</button></div></div>\n      <div id=\"pdBar\" class=\"pdBar\"><button class=\"btn px\" id=\"pdPrev\" title=\"Page précédente\">◀</button><input class=\"f\" id=\"pdPageNum\" type=\"number\" min=\"1\" value=\"1\"><span class=\"hint\" id=\"pdTotal\"></span><button class=\"btn px\" id=\"pdNext\" title=\"Page suivante\">▶</button>\n        <button class=\"btn px\" id=\"pdZoomOut\" title=\"Dézoomer\">−</button><span class=\"hint\" id=\"pdZoom\"></span><button class=\"btn px\" id=\"pdZoomIn\" title=\"Zoomer\">+</button><button class=\"btn px\" id=\"pdFit\" title=\"Toute la largeur\">LARGEUR</button>\n        <span id=\"pdTools\" class=\"pdTools\"></span><button class=\"btn px\" id=\"pdUndo\" title=\"Annuler le dernier tracé ou la dernière note\">ANNULER</button>\n        <button class=\"btn px\" id=\"pdCopy\" title=\"Une copie du PDF tel quel\">ENREGISTRER LE PDF</button><button class=\"btn main px\" id=\"pdExport\" title=\"Une copie du PDF avec tes tracés et tes notes\">ENREGISTRER ANNOTÉ</button></div>\n      <div id=\"pdRecentBox\" class=\"sysCard px\"></div>\n      <div id=\"pdPages\" class=\"pdPages\"></div>\n    </div>";
+const HTML = "<div class=\"appWrap pdWrap\">\n      <div class=\"agHead\"><span class=\"label\">NeoPDF</span><span class=\"hint\" id=\"pdInfo\"></span><div class=\"agNav\"><button class=\"btn main px\" id=\"pdOpenBtn\">OUVRIR UN PDF</button></div></div>\n      <div id=\"pdDocs\" class=\"pdDocs\"></div>\n      <div id=\"pdBar\" class=\"pdBar\"><button class=\"btn px\" id=\"pdPrev\" title=\"Page précédente\">◀</button><input class=\"f\" id=\"pdPageNum\" type=\"number\" min=\"1\" value=\"1\"><span class=\"hint\" id=\"pdTotal\"></span><button class=\"btn px\" id=\"pdNext\" title=\"Page suivante\">▶</button>\n        <button class=\"btn px\" id=\"pdZoomOut\" title=\"Dézoomer\">−</button><span class=\"hint\" id=\"pdZoom\"></span><button class=\"btn px\" id=\"pdZoomIn\" title=\"Zoomer\">+</button><button class=\"btn px\" id=\"pdFit\" title=\"Toute la largeur\">LARGEUR</button><button class=\"btn px\" id=\"pdFull\" title=\"Plein écran (Échap pour sortir)\">PLEIN ÉCRAN</button>\n        <span id=\"pdTools\" class=\"pdTools\"></span><button class=\"btn px\" id=\"pdUndo\" title=\"Annuler le dernier tracé ou la dernière note\">ANNULER</button>\n        <button class=\"btn px\" id=\"pdCopy\" title=\"Une copie du PDF tel quel\">ENREGISTRER LE PDF</button><button class=\"btn main px\" id=\"pdExport\" title=\"Une copie du PDF avec tes tracés et tes notes\">ENREGISTRER ANNOTÉ</button></div>\n      <div id=\"pdRecentBox\" class=\"sysCard px\"></div>\n      <div id=\"pdPages\" class=\"pdPages\"></div>\n    </div>";
 /*CSS-MOVED*/ const CSS = `html.pxc :is(input:not([type=checkbox]):not([type=range]):not([type=color]),textarea,[contenteditable=""],[contenteditable=true],.dcPage,.textLayer span){cursor:var(--ct,text) !important}
 .appWrap.pdWrap{max-width:none;margin:0;height:100%;overflow:clip;gap:6px;padding:8px 10px}
 .pdBar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
@@ -9,6 +9,12 @@ const HTML = "<div class=\"appWrap pdWrap\">\n      <div class=\"agHead\"><span 
 .pdBar .hint{font-size:15px}.pdWrap .agHead .hint{font-size:14px}
 @media (max-width:1350px){.pdBar{gap:4px}#pdBar .btn{padding:5px 8px!important;font-size:11px!important;min-width:0!important;height:auto!important;width:auto!important}.pdTools{margin:0 4px;gap:3px}.pdColor{width:20px;height:20px}}
 .pdTools{display:flex;gap:4px;align-items:center;margin:0 8px}
+.pdDocs{display:flex;gap:4px;flex-wrap:wrap}.pdDocs:empty{display:none}
+.pdDoc{all:unset;display:flex;align-items:center;gap:8px;max-width:240px;padding:6px 10px;cursor:var(--cp,pointer);color:var(--muted);font:13px var(--text);background:rgba(255,255,255,.04);box-shadow:inset 0 -2px 0 var(--line)}
+.pdDoc span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.pdDoc:hover{color:#fff}
+.pdDoc.on{color:#fff;background:rgba(var(--mgr),.16);box-shadow:inset 0 -2px 0 var(--magenta)}
+.pdDoc b{font:9px var(--title);opacity:.7}.pdDoc b:hover{opacity:1;color:var(--red,#ff4f6d)}
+:root:fullscreen .pdWrap .agHead{display:none}:root:fullscreen .appWrap.pdWrap{padding:6px;background:var(--bg0,#05010b)}
 .pdColor{width:22px;height:22px;border:0;box-shadow:inset 0 0 0 2px #0006;cursor:var(--cp,pointer)}
 .pdColor.on{box-shadow:0 0 0 3px #fff}
 .pdPages{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;align-items:center;gap:14px;padding:14px;background:#05010b;box-shadow:0 0 0 3px var(--line2)}
@@ -49,7 +55,7 @@ export default async function (ctx) {
    The annotations of each PDF (found again by its content, wherever the file is) are in the "pdf" store, synced; "Enregistrer annoté"
    writes a copy of the PDF with them (pdf-main.js). A PDF opened by a website opens here instead of downloading. ---------- */
 const PD = {colors: ['#ff4f6d', '#ffd07a', '#5fd08a', '#4f9fe0', '#b46aee', '#130a20'], zooms: [.5, .75, 1, 1.25, 1.5, 2, 3], tools: {scroll: 'Défiler', pen: 'Stylo', hl: 'Surligneur', note: 'Note', erase: 'Gomme'}};
-let pdLib = null, pdStore = null, pd = null;  // pd: {path, name, hash, url, doc, pages: [{w, h, el, img, ink, done}], zoom, tool, color, undo}
+let pdLib = null, pdStore = null, pd = null, pdTabs = [];  // pdTabs: every open PDF (each one its own pd); pd: the one shown  // pd: {path, name, hash, url, doc, pages: [{w, h, el, img, ink, done}], zoom, tool, color, undo}
 const pdData = async () => pdStore ??= (await __storeGet('pdf')) || {docs: {}};
 const pdSave = () => { clearTimeout(pdSave.t); pdSave.t = setTimeout(() => __storeSet('pdf', pdStore), 400); };
 const pdDoc = () => pdStore.docs[pd.hash] ??= {name: pd.name, marks: [], notes: [], page: 1};
@@ -62,8 +68,9 @@ async function pdOpenPath(p, url) {
     globalThis.pdfjsWorker ??= await import(pdLib.GlobalWorkerOptions.workerSrc = await __asset('vendor/pdf.worker.min.mjs', 'text/javascript'));
     const doc = await pdLib.getDocument({data: f.data, isEvalSupported: false}).promise;  // no eval: a PDF's fonts can't run code
     await pdData();
-    pd?.doc?.destroy();
+    const same = pdTabs.find(t => t.hash === f.hash); if (same) { doc.destroy(); return pdShow(same); }  // already open: its tab
     pd = {path: p, url, name: f.name, hash: f.hash, doc, pages: [], zoom: 1.25, tool: pd?.tool || 'scroll', color: pd?.color || PD.colors[0], undo: []};
+    pdTabs.push(pd);
     const d = pdDoc(); Object.assign(d, {name: f.name, path: url ? '' : p, url: url || '', at: Date.now(), count: doc.numPages});
     // the list of recent PDFs is kept short
     const old = Object.entries(pdStore.docs).sort((a, b) => b[1].at - a[1].at).slice(30); for (const [h] of old) if (!pdStore.docs[h].marks.length && !pdStore.docs[h].notes.length) delete pdStore.docs[h];
@@ -124,6 +131,7 @@ function pdInk(i) {
   }));
 }
 function pdUi() {
+  pdTabsUi();
   if (!pd) { $('pdInfo').textContent = 'Ouvre un PDF, glisse-en un ici, ou ouvre-en un sur un site.'; $('pdBar').style.display = 'none'; pdRecent(); return; }
   const d = pdDoc(); $('pdBar').style.display = ''; $('pdRecentBox').style.display = 'none';
   $('pdInfo').textContent = pd.name + ' · ' + pd.doc.numPages + ' page' + (pd.doc.numPages > 1 ? 's' : '') + ' · ' + d.marks.length + ' tracé' + (d.marks.length > 1 ? 's' : '') + ', ' + d.notes.length + ' note' + (d.notes.length > 1 ? 's' : '');
@@ -141,6 +149,22 @@ function pdRecent() {
     b.onclick = () => d.path ? pdOpenPath(d.path) : d.url && host.newTab(d.url);
     acts.append(b); r.append(n, acts); return r;
   }) : [el('div', 'hint', 'Aucun PDF ouvert pour l\'instant.')]));
+}
+// the tabs: a click shows that PDF where it was left, × closes it (its annotations stay saved)
+async function pdShow(t) { pd = t; pd.zoom = pd.fit ? await pdFitZoom() : pd.zoom; await pdLayout(); pdGo(pdDoc().page || 1); }
+function pdClose(t) {
+  const i = pdTabs.indexOf(t); if (i < 0) return; pdTabs.splice(i, 1); t.doc.destroy();
+  if (pd !== t) return pdUi();
+  const next = pdTabs[Math.min(i, pdTabs.length - 1)];
+  if (next) return pdShow(next);
+  pd = null; pdObs?.disconnect(); $('pdPages').replaceChildren(); pdUi();
+}
+function pdTabsUi() {
+  $('pdDocs').replaceChildren(...(pdTabs.length > 1 || pd ? pdTabs : []).map(t => {
+    const b = el('button', 'pdDoc' + (t === pd ? ' on' : '')), x = el('b', '', '✕'); b.title = t.name; b.append(el('span', '', t.name), x);
+    b.onclick = () => t !== pd && pdShow(t); x.onclick = e => { e.stopPropagation(); pdClose(t); };
+    return b;
+  }));
 }
 async function pdOpen() { await pdData(); if (pd) { pdUi(); return; } pdUi(); }
 function pdGo(n) { const p = pd?.pages[Math.min(pd.pages.length, Math.max(1, n)) - 1]; if (!p) return; const box = $('pdPages'); box.scrollTop += p.el.getBoundingClientRect().top - box.getBoundingClientRect().top; $('pdPageNum').value = n; }
@@ -168,6 +192,8 @@ $('pdPages').onscroll = () => { if (!pd) return; const box = $('pdPages'), mid =
 $('pdPageNum').onchange = e => pdGo(+e.target.value);
 $('pdPrev').onclick = () => pdGo((+$('pdPageNum').value || 1) - 1);
 $('pdNext').onclick = () => pdGo((+$('pdPageNum').value || 1) + 1);
+$('pdFull').onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(e => toast('Plein écran impossible : ' + e.message, true));
+document.addEventListener('fullscreenchange', () => { $('pdFull').textContent = document.fullscreenElement ? 'QUITTER LE PLEIN ÉCRAN' : 'PLEIN ÉCRAN'; });
 $('pdFit').onclick = async () => pd && pdSetZoom(await pdFitZoom(), true);
 let pdResizeT = null;  // « toute la largeur » le reste quand la fenêtre change de taille
 addEventListener('resize', () => { clearTimeout(pdResizeT); pdResizeT = setTimeout(async () => { if (pd?.fit && $('pdPages')?.clientWidth) { const z = await pdFitZoom(); if (Math.abs(z - pd.zoom) > .02) pdSetZoom(z, true); } }, 250); });

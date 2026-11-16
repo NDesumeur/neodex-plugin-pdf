@@ -6,6 +6,11 @@ module.exports = async ({ pj, js, sleep }) => {
   let out = '%PDF-1.4\n', offs = []; objs.forEach((o, i) => { offs.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
   const x = out.length; out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offs.map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('') + `trailer\n<</Size ${objs.length + 1}/Root 1 0 R>>\nstartxref\n${x}\n%%EOF\n`;
   fs.writeFileSync(f, out);
+  const make = text => {  // the same PDF with another text (another file for NeoPDF)
+    const st = `BT /F1 24 Tf 40 100 Td (${text}) Tj ET`, o2 = [...objs]; o2[3] = `<</Length ${st.length}>>stream\n${st}\nendstream`;
+    let s = '%PDF-1.4\n'; const of = []; o2.forEach((o, i) => { of.push(s.length); s += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+    const xx = s.length; return s + `xref\n0 ${o2.length + 1}\n0000000000 65535 f \n` + of.map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('') + `trailer\n<</Size ${o2.length + 1}/Root 1 0 R>>\nstartxref\n${xx}\n%%EOF\n`;
+  };
   const r1 = await js(`openWithPlugin([${JSON.stringify(f)}]).then(v => String(v), e => 'ERR ' + e.message)`); let state = 0;
   for (let i = 0; i < 30 && !state; i++) { await sleep(500); state = await pj(`[...document.querySelectorAll('#pdPages canvas')].filter(c => c.width > 50 && c.height > 50).length`); }  // le PDF se lit puis se dessine : jusqu'à 15 s
   const errs = await js(`[...(pluginErrors.get('neodex.pdf') || []).map(x => x.msg), ...__perr.splice(0)]`);
@@ -16,6 +21,17 @@ module.exports = async ({ pj, js, sleep }) => {
     return { fits: p.right <= w.right + 1 && p.left >= w.left - 1, bar: Math.round(bar.height), over: [...document.querySelectorAll('.appWrap *')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).length }; })()`);
   if (!lay.fits || lay.over) throw new Error('mise en page : ' + JSON.stringify(lay));
   if (lay.bar > 120) throw new Error('la barre d’outils prend ' + lay.bar + ' px de haut');
-  fs.rmSync(f, { force: true });
-  return 'PDF ouvert, ' + state + ' page(s) dessinée(s)';
+  // a second PDF: a second tab, the first one stays open; a click on a tab shows it, × closes it
+  const f2 = path.join(os.tmpdir(), 'essai-neopdf-2.pdf'); fs.writeFileSync(f2, make('Second PDF'));
+  await js(`openWithPlugin([${JSON.stringify(f2)}])`);
+  let tabs = ''; for (let i = 0; i < 20 && !tabs.startsWith('2'); i++) { await sleep(400); tabs = await pj(`document.querySelectorAll('.pdDoc').length + '|' + document.querySelector('.pdDoc.on span')?.textContent`); }
+  if (tabs !== '2|essai-neopdf-2.pdf') throw new Error('deux PDF ouverts : ' + tabs);
+  await pj(`document.querySelector('.pdDoc:not(.on)').click()`); await sleep(800);
+  const back = await pj(`document.querySelector('.pdDoc.on span').textContent + '|' + document.getElementById('pdInfo').textContent`);
+  if (!back.startsWith('essai-neopdf.pdf|essai-neopdf.pdf')) throw new Error('retour au premier PDF : ' + back);
+  await pj(`document.querySelector('.pdDoc.on b').click()`); await sleep(800);
+  const left = await pj(`document.querySelectorAll('.pdDoc').length + '|' + document.querySelector('.pdDoc.on span')?.textContent + '|' + !!document.getElementById('pdFull')`);
+  if (left !== '1|essai-neopdf-2.pdf|true') throw new Error('après fermeture : ' + left);
+  fs.rmSync(f, { force: true }); fs.rmSync(f2, { force: true });
+  return 'PDF ouvert, ' + state + ' page(s) dessinée(s) · 2 PDF en onglets, fermeture d\'un onglet · bouton plein écran';
 };
