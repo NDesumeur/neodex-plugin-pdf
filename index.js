@@ -9,6 +9,8 @@ const HTML = "<div class=\"appWrap pdWrap\">\n      <div class=\"agHead\"><span 
 .pdBar .hint{font-size:15px}.pdWrap .agHead .hint{font-size:14px}
 @media (max-width:1350px){.pdBar{gap:4px}#pdBar .btn{padding:5px 8px!important;font-size:11px!important;min-width:0!important;height:auto!important;width:auto!important}.pdTools{margin:0 4px;gap:3px}.pdColor{width:20px;height:20px}}
 .pdTools{display:flex;gap:4px;align-items:center;margin:0 8px}
+.pdSigPad{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.6);display:grid;place-items:center}.pdSigPad>div{display:flex;flex-direction:column;gap:8px;padding:16px}
+.pdSigPad canvas{background:#fff;border:2px solid var(--line);touch-action:none;cursor:crosshair;width:min(560px,86vw);aspect-ratio:500/180}.pdSigPad .row{display:flex;gap:6px;justify-content:flex-end}
 .pdDocs{display:flex;gap:4px;flex-wrap:wrap}.pdDocs:empty{display:none}
 .pdDoc{all:unset;display:flex;align-items:center;gap:8px;max-width:240px;padding:6px 10px;cursor:var(--cp,pointer);color:var(--muted);font:13px var(--text);background:rgba(255,255,255,.04);box-shadow:inset 0 -2px 0 var(--line)}
 .pdDoc span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.pdDoc:hover{color:#fff}
@@ -54,7 +56,7 @@ export default async function (ctx) {
 /* ---------- NeoPDF: reads PDFs with pdf.js (vendor/pdfjs, Mozilla, Apache 2.0) and lets you draw on them: pen, highlighter, notes, eraser.
    The annotations of each PDF (found again by its content, wherever the file is) are in the "pdf" store, synced; "Enregistrer annoté"
    writes a copy of the PDF with them (pdf-main.js). A PDF opened by a website opens here instead of downloading. ---------- */
-const PD = {colors: ['#ff4f6d', '#ffd07a', '#5fd08a', '#4f9fe0', '#b46aee', '#130a20'], zooms: [.5, .75, 1, 1.25, 1.5, 2, 3], tools: {scroll: 'Défiler', pen: 'Stylo', hl: 'Surligneur', note: 'Note', erase: 'Gomme'}};
+const PD = {colors: ['#ff4f6d', '#ffd07a', '#5fd08a', '#4f9fe0', '#b46aee', '#130a20'], zooms: [.5, .75, 1, 1.25, 1.5, 2, 3], tools: {scroll: 'Défiler', pen: 'Stylo', hl: 'Surligneur', note: 'Note', text: 'Texte', sign: 'Signature', erase: 'Gomme'}};
 let pdLib = null, pdStore = null, pd = null, pdTabs = [];  // pdTabs: every open PDF (each one its own pd); pd: the one shown  // pd: {path, name, hash, url, doc, pages: [{w, h, el, img, ink, done}], zoom, tool, color, undo}
 const pdData = async () => pdStore ??= (await __storeGet('pdf')) || {docs: {}};
 const pdSave = () => { clearTimeout(pdSave.t); pdSave.t = setTimeout(() => __storeSet('pdf', pdStore), 400); };
@@ -114,6 +116,9 @@ async function pdRender(i) {
 // the drawings and notes of one page; coordinates are kept as fractions of the page, so the zoom doesn't matter
 function pdPaint(g, W, H, marks, scale) {
   for (const m of marks) {
+    if (m.t === 'text') { g.save(); g.fillStyle = m.c; g.textBaseline = 'top'; g.font = Math.round(m.s * H) + 'px Arial, sans-serif'; String(m.text).split(/\r?\n/).forEach((l, j) => g.fillText(l, m.pts[0] * W, m.pts[1] * H + j * m.s * H * 1.2)); g.restore(); continue; }
+    if (m.t === 'sign') { const sw = m.w * W; g.save(); g.strokeStyle = m.c; g.lineCap = g.lineJoin = 'round'; g.lineWidth = Math.max(1, sw / 160);
+      for (const st of m.sig) { g.beginPath(); for (let j = 0; j < st.length; j += 2) (j ? g.lineTo : g.moveTo).call(g, m.pts[0] * W + st[j] * sw, m.pts[1] * H + st[j + 1] * sw); g.stroke(); } g.restore(); continue; }
     g.save(); g.lineCap = g.lineJoin = 'round'; g.strokeStyle = m.c;
     g.globalAlpha = m.t === 'hl' ? .35 : 1; g.lineWidth = m.w * scale * (m.t === 'hl' ? 6 : 1);
     g.beginPath(); for (let j = 0; j < m.pts.length; j += 2) (j ? g.lineTo : g.moveTo).call(g, m.pts[j] * W, m.pts[j + 1] * H); g.stroke(); g.restore();
@@ -137,6 +142,7 @@ function pdUi() {
   $('pdInfo').textContent = pd.name + ' · ' + pd.doc.numPages + ' page' + (pd.doc.numPages > 1 ? 's' : '') + ' · ' + d.marks.length + ' tracé' + (d.marks.length > 1 ? 's' : '') + ', ' + d.notes.length + ' note' + (d.notes.length > 1 ? 's' : '');
   $('pdZoom').textContent = Math.round(pd.zoom * 100) + ' %'; $('pdTotal').textContent = '/ ' + pd.doc.numPages;
   $('pdTools').replaceChildren(...Object.entries(PD.tools).map(([k, n]) => { const b = el('button', 'btn px' + (pd.tool === k ? ' main' : ''), n); b.onclick = () => { pd.tool = k; pdUi(); }; return b; }),
+    ...(pd.tool === 'sign' && pdStore.sig ? [(() => { const b = el('button', 'btn px', 'REFAIRE'); b.title = 'Dessiner une nouvelle signature'; b.onclick = () => pdSigPad(); return b; })()] : []),
     ...PD.colors.map(c => { const b = el('button', 'pdColor' + (pd.color === c ? ' on' : '')); b.style.background = c; b.title = 'Couleur'; b.onclick = () => { pd.color = c; pdUi(); }; return b; }));
   $('pdPages').dataset.tool = pd.tool;
 }
@@ -175,6 +181,9 @@ $('pdPages').onpointerdown = e => {
   if (!pd || pd.tool === 'scroll' || e.button) return;
   const pe = e.target.closest('.pdPage'); if (!pe || e.target.closest('.pdNote')) return;
   const i = +pe.dataset.i, p = pd.pages[i], d = pdDoc(); e.preventDefault();
+  if (pd.tool === 'text') { const [x, y] = pdAt(p, e); ask('Texte à écrire sur la page', '', 'Pour remplir un formulaire : nom, date, adresse…').then(t => { if (!t?.trim()) return; const m = {p: i, t: 'text', c: pd.color === PD.colors[1] ? '#130a20' : pd.color, s: .016, text: t, pts: [x, y]}; d.marks.push(m); pd.undo.push(['marks', m]); pdSave(); pdInk(i); pdUi(); }); return; }
+  if (pd.tool === 'sign') { const [x, y] = pdAt(p, e); const put = () => { const m = {p: i, t: 'sign', c: '#14205a', w: .25, sig: pdStore.sig, pts: [x, y]}; d.marks.push(m); pd.undo.push(['marks', m]); pdSave(); pdInk(i); pdUi(); };
+    if (pdStore.sig?.length) put(); else pdSigPad().then(ok => ok && put()); return; }
   if (pd.tool === 'note') { const [x, y] = pdAt(p, e); ask('Note', '', 'Elle reste sur la page, à cet endroit').then(t => { if (!t?.trim()) return; const n = {p: i, x, y, text: t, c: pd.color}; d.notes.push(n); pd.undo.push(['notes', n]); pdSave(); pdInk(i); pdUi(); }); return; }
   pe.setPointerCapture(e.pointerId);
   if (pd.tool === 'erase') {
@@ -199,6 +208,22 @@ let pdResizeT = null;  // « toute la largeur » le reste quand la fenêtre chan
 addEventListener('resize', () => { clearTimeout(pdResizeT); pdResizeT = setTimeout(async () => { if (pd?.fit && $('pdPages')?.clientWidth) { const z = await pdFitZoom(); if (Math.abs(z - pd.zoom) > .02) pdSetZoom(z, true); } }, 250); });
 $('pdZoomIn').onclick = () => pd && pdSetZoom(PD.zooms.find(z => z > pd.zoom) || pd.zoom);
 $('pdZoomOut').onclick = () => pd && pdSetZoom([...PD.zooms].reverse().find(z => z < pd.zoom) || pd.zoom);
+// la signature : dessinée une fois à la souris ou au stylet, gardée (synchronisée avec tes annotations), posée d'un clic
+function pdSigPad() {
+  return new Promise(done => {
+    const ov = el('div', 'pdSigPad'), box = el('div', 'tbPop px on'), c = el('canvas'), g = c.getContext('2d'), row = el('div', 'row'), strokes = [];
+    c.width = 500; c.height = 180; g.lineWidth = 3; g.lineCap = g.lineJoin = 'round'; g.strokeStyle = '#14205a';
+    const at = e => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * 500, (e.clientY - r.top) / r.height * 180]; };
+    c.onpointerdown = e => { try { c.setPointerCapture(e.pointerId); } catch {} const st = at(e); strokes.push(st); g.beginPath(); g.moveTo(...st);
+      c.onpointermove = ev => { const q = at(ev); st.push(...q); g.lineTo(...q); g.stroke(); }; c.onpointerup = () => { c.onpointermove = c.onpointerup = null; if (st.length < 4) st.push(st[0] + 1, st[1]); }; };
+    const b = (t, f, cls = 'btn px') => { const x = el('button', cls, t); x.onclick = f; return x; }, close = v => { ov.remove(); done(v); };
+    row.append(b('EFFACER', () => { strokes.length = 0; g.clearRect(0, 0, 500, 180); }), b('ANNULER', () => close(false)), b('GARDER', () => {
+      if (!strokes.length) return toast('Dessine d\'abord ta signature', true);
+      pdStore.sig = strokes.map(st => st.map(v => Math.round(v / 500 * 1e4) / 1e4)); pdSave(); toast('Signature gardée : clique sur la page pour la poser'); close(true); }, 'btn main px'));
+    box.append(el('b', '', 'Ta signature'), el('span', 'hint', 'Dessine-la à la souris ou au stylet. Elle est gardée pour les prochains PDF.'), c, row); ov.append(box); document.body.append(ov);
+    ov.onclick = e => { if (e.target === ov) close(false); };
+  });
+}
 $('pdUndo').onclick = () => { const u = pd?.undo.pop(); if (!u) return; const d = pdDoc(), l = d[u[0]]; if (l.includes(u[1])) l.splice(l.indexOf(u[1]), 1); pdSave(); pdInk(u[1].p); pdUi(); };
 $('pdOpenBtn').onclick = async () => { const p = await neo.pdfPick(); if (p) pdOpenPath(p); };
 $('pdCopy').onclick = () => pd && neo.pdfSaveCopy(pd.path).then(p => p && toast('PDF enregistré : ' + p));
@@ -229,4 +254,5 @@ neo.onPdfOpen(d => { host.newTab('neodex:pdf');  // un PDF du web, pris par NeoD
   ctx.onFiles(files => files[0] && pdOpenPath(files[0]));  // « ouvrir avec » : Fichiers, Visionneuse
   ctx.commands.on('find', () => pdTextAll());  // la recherche dans la page : le texte de chaque page d'abord
   ctx.onOpen(() => { pdOpen(); });
+  view.__pd = {get pd() { return pd; }, sigPad: pdSigPad, store: () => pdStore, marks: () => pdMarks(), paint: pdPaint};  // pour le test « local »
 }

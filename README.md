@@ -4,6 +4,10 @@ Un lecteur de PDF qui permet aussi de les annoter : stylo, surligneur, notes et 
 
 *English version: [README.en.md](README.en.md)*
 
+## Remplir et signer (nouveau en 1.3.0)
+
+Outil Texte pour remplir un formulaire, outil Signature (dessinée une fois, gardée, posée d'un clic) ; les deux partent dans « Enregistrer annoté ».
+
 ## Ouvrir un PDF
 
 - **Ouvrir un PDF**, ou glisse un fichier sur la page.
@@ -25,7 +29,9 @@ Choisis un outil dans la barre :
 - **Stylo** : tracer à main levée.
 - **Surligneur** : un trait large et transparent pour surligner.
 - **Note** : clique pour poser une note à cet endroit de la page. Clique sur une note pour la modifier ; vide-la pour la supprimer.
-- **Gomme** : clique sur un tracé pour l'effacer.
+- **Texte** : clique où écrire (nom, date, adresse…) pour remplir un formulaire.
+- **Signature** : dessine ta signature une fois, puis clique sur la page pour la poser. Elle est gardée pour les prochains PDF ; « Refaire » en dessine une nouvelle.
+- **Gomme** : clique sur un tracé, un texte ou une signature (son coin en haut à gauche) pour l'effacer.
 
 Six couleurs au choix : rouge, jaune, vert, bleu, violet et noir. **Annuler** retire le dernier tracé ou la dernière note.
 

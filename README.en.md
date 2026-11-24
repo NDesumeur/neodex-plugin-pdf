@@ -4,6 +4,10 @@ A PDF reader that also lets you annotate: pen, highlighter, notes and eraser, wi
 
 *Version française : [README.md](README.md)*
 
+## Fill in and sign (new in 1.3.0)
+
+Text tool to fill in a form, Signature tool (drawn once, kept, placed with a click); both go into "Save annotated".
+
 ## Opening a PDF
 
 - **Open a PDF**, or drag a file onto the page.
@@ -25,7 +29,9 @@ Pick a tool in the bar:
 - **Pen**: draw freehand.
 - **Highlighter**: a wide, transparent stroke for highlighting.
 - **Note**: click to place a note at that spot on the page. Click a note to edit it; empty it to delete it.
-- **Eraser**: click a stroke to erase it.
+- **Text**: click where to write (name, date, address…) to fill in a form.
+- **Signature**: draw your signature once, then click on the page to place it. It is kept for your next PDFs; "Redo" draws a new one.
+- **Eraser**: click a stroke, a text or a signature (its top-left corner) to erase it.
 
 Six colours to choose from: red, yellow, green, blue, purple and black. **Undo** removes the last stroke or note.
 

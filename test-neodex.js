@@ -32,6 +32,22 @@ module.exports = async ({ pj, js, sleep }) => {
   await pj(`document.querySelector('.pdDoc.on b').click()`); await sleep(800);
   const left = await pj(`document.querySelectorAll('.pdDoc').length + '|' + document.querySelector('.pdDoc.on span')?.textContent + '|' + !!document.getElementById('pdFull')`);
   if (left !== '1|essai-neopdf-2.pdf|true') throw new Error('après fermeture : ' + left);
+  // remplir et signer : la signature dessinée dans sa fenêtre, puis un texte et la signature posés sur la page, gardés dans l'export
+  const sg = await pj(`(async () => { try {
+    const v = document.querySelector('.pdWrap').parentNode, P = v.__pd; const st = P.store(); delete st.sig;
+    const pr = P.sigPad(); await new Promise(r => setTimeout(r, 100)); const c = document.querySelector('.pdSigPad canvas'), r = c.getBoundingClientRect();
+    const ev = (t, x, y) => c.dispatchEvent(new PointerEvent(t, {clientX: r.left + x * r.width, clientY: r.top + y * r.height, pointerId: 7, bubbles: true}));
+    ev('pointerdown', .1, .6); for (let k = 1; k <= 10; k++) ev('pointermove', .1 + k * .07, .6 - Math.sin(k) * .3); ev('pointerup', .8, .5);
+    [...document.querySelectorAll('.pdSigPad button')].find(b => b.textContent === 'GARDER').click(); const ok = await Promise.race([pr, new Promise(r => setTimeout(() => r('délai'), 3000))]);
+    if (!ok || !st.sig?.length || st.sig[0].length < 20 || st.sig[0].some(x => x < 0 || x > 1)) return {err: 'signature : ' + JSON.stringify(st.sig).slice(0, 120)};
+    const pd = P.pd, d = st.docs[pd.hash]; d.marks.push({p: 0, t: 'text', c: '#130a20', s: .05, text: 'Jean Martin', pts: [.1, .1]}, {p: 0, t: 'sign', c: '#14205a', w: .3, sig: st.sig, pts: [.5, .55]});
+    const g = document.createElement('canvas'); g.width = 300; g.height = 200; P.paint(g.getContext('2d'), 300, 200, d.marks, 1);
+    const px = g.getContext('2d').getImageData(0, 0, 300, 200).data; let ink = 0; for (let k = 3; k < px.length; k += 4) if (px[k]) ink++;
+    const m = await P.marks(); if (!m[0]?.startsWith('data:image/png') || ink < 100) return {err: 'export : ' + Object.keys(m) + ' ' + ink};
+    document.querySelector('#pdPages')?.dispatchEvent(new Event('scroll'));
+    return {ink};
+  } catch (e) { return {err: e.message}; } })()`);
+  if (sg.err) throw new Error(sg.err);
   fs.rmSync(f, { force: true }); fs.rmSync(f2, { force: true });
-  return 'PDF ouvert, ' + state + ' page(s) dessinée(s) · 2 PDF en onglets, fermeture d\'un onglet · bouton plein écran';
+  return 'remplir et signer ok (' + sg.ink + ' pixels) · PDF ouvert, ' + state + ' page(s) dessinée(s) · 2 PDF en onglets, fermeture d\'un onglet · bouton plein écran';
 };
